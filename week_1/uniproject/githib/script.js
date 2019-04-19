@@ -1,8 +1,13 @@
-const http = require('https');
+const http  = require('https');
+const fs    = require('fs');
 
 const githubEndpoint = 'https://api.github.com';
 
-const getAllGithubRepositoryCollection = function(githubHandler, callback) {
+// Refernse helper 
+// In order not to change the function names on more than one place
+var ModuleReference = {};
+
+ModuleReference.getAllGithubRepositoryCollectionFromHTTP = function(githubHandler, callback) {
     
     var requestEndpoint = `${githubEndpoint}/users/${githubHandler}/repos`;
 
@@ -31,6 +36,18 @@ const getAllGithubRepositoryCollection = function(githubHandler, callback) {
 };
 
 
-module.exports = {
-    getAllGithubRepositoryCollection
-}
+ModuleReference.getAllGithubRepositoryCollectionFromFile = (handler, callback) => {
+    
+    // short hand
+    // var responseObject  = JSON.parse((fs.readFileSync('./mock/api.json')).toString());
+    
+    // long hand
+    var fileBuffer      = fs.readFileSync('./mock/api.json');
+    var fileString      = fileBuffer.toString();
+    var responseObject  = JSON.parse(fileString)
+
+    callback(responseObject);
+};
+
+
+module.exports = ModuleReference;
