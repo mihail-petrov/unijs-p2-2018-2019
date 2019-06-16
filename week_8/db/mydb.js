@@ -13,11 +13,14 @@ var Database = function() {
     }
 };
 
-Database.prototype.select = function(document, whereCollection) {
+Database.prototype.select = function(document, whereCollection, filterObject) {
 
     var rawDatabaseCollection       = (fs.readFileSync(`${ARTEFACT_PATH}/${document}`)).toString();
     var parsedDatabaseCollection    = rawDatabaseCollection.split('\n');
     var collection                  = [];
+
+    // hold limited amount of values
+    var filterCollection             = [];
 
     // Fix the last new line 
     for(var i = 0; i < parsedDatabaseCollection.length - 1; i++) {
@@ -38,7 +41,30 @@ Database.prototype.select = function(document, whereCollection) {
         }
     }
 
-    return collection;
+    //filterCollection = collection;
+    filterCollection = collection.splice(0);
+
+    if(filterObject.skip) {
+
+        var skippInnerCollection = [];
+        for(var skipIterator = filterObject.skip; skipIterator < filterCollection.length; skipIterator++) {
+            skippInnerCollection.push(filterCollection[skipIterator]);
+        }
+        filterCollection = skippInnerCollection;
+    }
+
+    //
+    if(filterObject.limit) {
+
+        var limitInnerCollection = [];
+        for(var limitIterator = 0; limitIterator < filterObject.limit; limitIterator++) {
+            limitInnerCollection.push(filterCollection[limitIterator]);
+        }
+
+        filterCollection = limitInnerCollection;
+    }
+
+    return filterCollection;
 };
 
 Database.prototype.insert = function(document, object) {

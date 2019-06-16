@@ -4,29 +4,111 @@ const bodyParser = require('body-parser');
 const app     = express();
 const PORT    = 3012;
 const db      = require('./db/mydb');
+const jwt     = require('jsonwebtoken'); 
 
-const translate = (lang, code) => {
-
-    const TRANSLATE_COLLECTION = {
-
-        "SUCCESS" : {
-            "bg" : "Заявката е успешно съхранена",
-            "en" : "Success stored in database"
-        },
-
-        "ERROR" : {
-            "bg" : "Нещо много се обърка",
-            "en" : "Something whent wrong"
-        }        
-    }
-
-    return TRANSLATE_COLLECTION[code][lang];
+const api     = {
+    base  : require('./api/base/script'),
+    books : require('./api/books/script')
 }
 
+const isRequestPermitable = (path, role) => {
+
+    var ROUTE_PERMITION_MAP = {
+
+        '/'             : ['backoffice'],
+        '/auth'         : ['*']
+    }
+
+    var pathPermitionCollection = ROUTE_PERMITION_MAP[path];
+    if(!pathPermitionCollection) {
+        return false;
+    }
+
+    for(var i = 0; i < pathPermitionCollection.length; i++) {
+        
+        if(pathPermitionCollection[i] == '*') {
+            return true;
+        }
+
+        // succkess 
+        if(role == pathPermitionCollection[i]) {
+            return true;
+        }
+    }
+
+    return false;
+};
 
 
 // Use Middleware
 app.use(bodyParser.json());
+
+// 
+app.use((req, res, next) => {
+
+    req.metadata = {
+        lang : (req.header('lang') || 'en')
+    };
+
+    next();
+});
+
+//  
+app.use((req, res, next) => {
+
+    req.filterdata = {
+        limit   : req.query.limit || 10,
+        skip    : req.query.skip  || 0
+    };
+
+    next();
+});
+
+
+// Authentication token middleware
+app.use((req, res, next) => {
+
+    if(req.path == '/auth' && req.method == 'POST') {
+        return next();
+    }
+
+    var tokken  = req.header('x-authenticated');
+    if(tokken) {
+
+        try {
+
+            var tokkenRequest = jwt.verify(tokken, 'tainamaina');
+            req.role = tokkenRequest.role;
+            return next();
+        }
+        catch(error) {
+
+            return res.status(400).send({
+                message : 'Invalid tokken request'
+            });
+        }
+
+        return next();
+    }
+
+    return res.status(400).send({
+        message : 'No authentication token provided'
+    });
+});
+
+
+app.use((req, res, next) => {
+
+    if(isRequestPermitable(req.path, req.role)) {
+        return next();
+    }
+
+    return res.status(403).send({
+        message : 'No permitions for accessing this route'
+    });
+
+})
+
 
 // db.insert('books', {
 //     title   : 'Test',
@@ -49,48 +131,22 @@ app.use(bodyParser.json());
  * @description : Get the main information
  */
 app.get('/', (req, res) => {
-    res.status(400).send('Hello world');
+    res.status(200).send('Hello world');
 });
 
-// BOOK group
-app.get('/books', (req, res) => {
-    
-    var bookCollection = db.select('books');
-    
-    res.status(200).send({
-        message     : 'Success fetch',
-        collection  : bookCollection
-    });
-});
+/**
+ * @endpoint : /base
+ * @method   : POST | GET
+ * @description : All base api references
+ */
+api.base(app, db);
 
-
-app.post('/books', (req, res) => {
-    
-    var lang = req.header('lang');
-
-    if(!req.body.title) {
-        return res.status(405).send({
-            message : translate(lang, 'ERROR')
-        })
-    }
-
-    if(req.body.isbn.length > 15) {
-
-        return res.status(405).send({
-            message : translate(lang, 'ERROR')
-        })
-    }
-
-    var record = db.insert('books', req.body);
-
-    res.status(200).send({
-        message     : translate(lang, 'SUCCESS'),
-        collection  : [record]
-    })
-});
-
-
-
+/**
+ * @endpoint : /books
+ * @method   : GET
+ * @description : Get the books collection data
+ */
+api.books(app, db);
 
 app.listen(PORT, () => {
     console.log(`Application server running on ... ${PORT}`);
